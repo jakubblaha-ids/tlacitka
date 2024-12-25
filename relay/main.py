@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.DEBUG,
 clients = set()
 
 fake_ips = ["192.168.0.101", "192.168.0.102", "192.168.0.103"]
+heartbeat_interval = 1
 
 
 def print_active_clients():
@@ -99,12 +100,25 @@ async def relay(websocket, path=None):
         clients.remove(websocket)
 
 
+async def relay_hearbeat_loop():
+    while True:
+        msg = {
+            "source": "relay",
+            "event": "relay_heartbeat"
+        }
+
+        await broadcast_message(json.dumps(msg))
+        logging.info(f"Sent relay heartbeat to {len(clients)} clients")
+
+        await asyncio.sleep(heartbeat_interval)
+
+
 async def heartbeat_simulate_loop():
-    await asyncio.sleep(2)
+    await asyncio.sleep(heartbeat_interval)
 
     while True:
         await send_simulate_heartbeat()
-        await asyncio.sleep(2)
+        await asyncio.sleep(heartbeat_interval)
 
 
 async def button_press_simulate_loop():
@@ -116,11 +130,14 @@ async def button_press_simulate_loop():
 async def main():
     print("WebSocket relay server starting on ws://localhost:8080")
 
-    async with websockets.serve(relay, "0.0.0.0", 8080, ping_interval=1):
+    async with websockets.serve(relay, "0.0.0.0", 8080):
         await asyncio.gather(
             asyncio.Future(),  # Run forever
-            # heartbeat_loop(),   # Run heartbeat loop
-            # button_press_simulate_loop()
+            relay_hearbeat_loop(),
+
+            # Simulations
+            heartbeat_simulate_loop(),   # Run heartbeat loop
+            button_press_simulate_loop()
         )
 
 
